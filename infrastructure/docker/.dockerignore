@@ -1,0 +1,14 @@
+# .dockerignore for The Daily Pulse builds.
+# NOTE: the Dockerfiles use the repository root as build context, so copy
+# this file to the repository root as `.dockerignore` before building, or
+# keep it here as the reference copy. Docker only reads `.dockerignore`
+# from the build-context directory.
+node_modules
+.next
+dist
+.git
+.env
+.env.local
+*.log
+coverage
+uploads

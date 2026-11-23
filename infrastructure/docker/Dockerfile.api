@@ -1,0 +1,29 @@
+# The Daily Pulse — API image (Express + Sequelize, MySQL 8.4)
+# Build context: repository root. Run from the repo root, e.g.:
+#   docker build -f infrastructure/docker/Dockerfile.api -t daily-pulse-api .
+FROM node:20-alpine AS build
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+COPY packages/shared ./packages/shared
+COPY apps/api ./apps/api
+
+RUN npm ci
+RUN npm run build --workspace=@daily-pulse/api
+# Drop dev dependencies for the runtime image.
+RUN npm prune --omit=dev
+
+FROM node:20-alpine AS runtime
+ENV NODE_ENV=production
+WORKDIR /app
+
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/package.json ./package.json
+COPY --from=build /app/packages/shared ./packages/shared
+COPY --from=build /app/apps/api/dist ./apps/api/dist
+# Sequelize CLI config + migrations run from the API working directory.
+COPY --from=build /app/apps/api/package.json ./apps/api/package.json
+
+WORKDIR /app/apps/api
+EXPOSE 4000
+CMD ["node", "dist/server.js"]

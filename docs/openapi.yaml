@@ -1,0 +1,1548 @@
+openapi: 3.0.3
+info:
+  title: The Daily Pulse API
+  version: 1.0.0
+  description: |
+    Multi-niche publishing platform API (Express 4 + Sequelize 6 + MySQL 8.4).
+    All responses use the shared `ApiResponse<T>` envelope
+    `{ success, data, error? }`. IDs are UUID strings exposed as `_id`.
+    Served as Swagger UI at `/api-docs` from the API app.
+servers:
+  - url: http://localhost:4000
+    description: Local development
+tags:
+  - name: Auth
+  - name: Posts
+  - name: Categories
+  - name: Tags
+  - name: RSS
+  - name: Banners
+  - name: Affiliates
+  - name: Authors
+  - name: Redirects
+  - name: Products
+  - name: Orders
+  - name: Newsletter
+  - name: Comments
+  - name: Media
+  - name: Users
+  - name: Settings
+  - name: Analytics
+  - name: Admin
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    PageParam:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 1, default: 1 }
+    PageSizeParam:
+      name: pageSize
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+  schemas:
+    ApiError:
+      type: object
+      properties:
+        code: { type: string, example: VALIDATION_ERROR }
+        message: { type: string }
+        details: { description: Field-level or provider details. }
+    ErrorResponse:
+      type: object
+      required: [success, data, error]
+      properties:
+        success: { type: boolean, example: false }
+        data: { nullable: true, example: null }
+        error: { $ref: "#/components/schemas/ApiError" }
+    SeoMeta:
+      type: object
+      properties:
+        title: { type: string, maxLength: 120 }
+        description: { type: string, maxLength: 200 }
+        keywords: { type: array, items: { type: string }, default: [] }
+        ogImage: { type: string }
+        noIndex: { type: boolean, default: false }
+    Post:
+      type: object
+      properties:
+        _id: { type: string, format: uuid }
+        slug: { type: string }
+        title: { type: string }
+        headline: { type: string }
+        summary: { type: string }
+        body: { description: Structured rich-text blocks (JSON). }
+        featuredImage: { type: string }
+        gallery: { type: array, items: { type: string } }
+        externalUrl: { type: string }
+        ctaLabel: { type: string, example: Read More }
+        category: { type: string, description: Category slug }
+        categoryName: { type: string }
+        tags: { type: array, items: { type: string } }
+        author: { type: string, description: Author _id }
+        authorName: { type: string }
+        postType:
+          type: string
+          enum:
+            [
+              editorial,
+              news,
+              link_card,
+              product_recommendation,
+              sponsored,
+              guide,
+              review,
+              comparison,
+              digital_product,
+            ]
+        language: { type: string, default: en }
+        status: { type: string, enum: [draft, review, published, scheduled] }
+        publishedAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+        seo: { $ref: "#/components/schemas/SeoMeta" }
+        sponsored: { type: boolean }
+        affiliateDisclosure: { type: boolean }
+        canonicalUrl: { type: string }
+        sourceName: { type: string }
+        sourceUrl: { type: string }
+        views: { type: integer }
+    PostCreate:
+      type: object
+      required: [title, category, postType]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 120 }
+        headline: { type: string, maxLength: 200 }
+        summary: { type: string, maxLength: 500 }
+        body: { description: Structured rich-text blocks (JSON). }
+        featuredImage: { type: string }
+        gallery: { type: array, items: { type: string } }
+        externalUrl: { type: string, format: uri }
+        ctaLabel: { type: string, default: Read More }
+        category: { type: string, description: Category slug }
+        tags: { type: array, items: { type: string } }
+        author: { type: string, description: Author _id }
+        postType:
+          type: string
+          enum:
+            [
+              editorial,
+              news,
+              link_card,
+              product_recommendation,
+              sponsored,
+              guide,
+              review,
+              comparison,
+              digital_product,
+            ]
+        language: { type: string, default: en }
+        status: { type: string, enum: [draft, review, published, scheduled], default: draft }
+        publishedAt: { type: string, format: date-time }
+        seo: { $ref: "#/components/schemas/SeoMeta" }
+        sponsored: { type: boolean, default: false }
+        affiliateDisclosure: { type: boolean, default: false }
+        canonicalUrl: { type: string, format: uri }
+        sourceName: { type: string }
+        sourceUrl: { type: string, format: uri }
+    Category:
+      type: object
+      properties:
+        _id: { type: string, format: uuid }
+        name: { type: string }
+        slug: { type: string }
+        description: { type: string }
+        parent: { type: string, nullable: true }
+        order: { type: integer }
+        isVertical: { type: boolean }
+        seo: { $ref: "#/components/schemas/SeoMeta" }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    Tag:
+      type: object
+      properties:
+        _id: { type: string, format: uuid }
+        name: { type: string }
+        slug: { type: string }
+        createdAt: { type: string, format: date-time }
+    Author:
+      type: object
+      properties:
+        _id: { type: string, format: uuid }
+        name: { type: string }
+        slug: { type: string }
+        bio: { type: string }
+        avatar: { type: string }
+        role: { type: string }
+        socials: { type: object, additionalProperties: { type: string } }
+        userId: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    User:
+      type: object
+      properties:
+        _id: { type: string, format: uuid }
+        name: { type: string }
+        email: { type: string, format: email }
+        role:
+          type: string
+          enum:
+            [
+              super_admin,
+              admin,
+              editor,
+              author,
+              news_editor,
+              seo_manager,
+              marketing_manager,
+              analyst,
+            ]
+        isActive: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    RssSource:
+      type: object
+      properties:
+        _id: { type: string, format: uuid }
+        name: { type: string }
+        url: { type: string, format: uri }
+        category: { type: string, description: Category slug }
+        active: { type: boolean }
+        fetchIntervalMinutes: { type: integer, minimum: 5, maximum: 1440, default: 15 }
+        lastFetchedAt: { type: string, format: date-time }
+        lastItemCount: { type: integer }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    RssItem:
+      type: object
+      properties:
+        _id: { type: string, format: uuid }
+        guid: { type: string }
+        link: { type: string }
+        title: { type: string }
+        summary: { type: string }
+        source: { type: string, description: RssSource _id }
+        sourceName: { type: string }
+        category: { type: string }
+        publishedAt: { type: string, format: date-time }
+        imported: { type: boolean }
+        postId: { type: string }
+        createdAt: { type: string, format: date-time }
+    Banner:
+      type: object
+      properties:
+        _id: { type: string, format: uuid }
+        title: { type: string }
+        imageUrl: { type: string }
+        linkUrl: { type: string }
+        placement: { type: string, example: home_hero }
+        active: { type: boolean }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time }
+        clicks: { type: integer }
+        impressions: { type: integer }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    AffiliateLink:
+      type: object
+      properties:
+        _id: { type: string, format: uuid }
+        title: { type: string }
+        targetUrl: { type: string, format: uri }
+        slug: { type: string, description: Public path /go/<slug> }
+        category: { type: string }
+        clicks: { type: integer }
+        active: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    Product:
+      type: object
+      properties:
+        _id: { type: string, format: uuid }
+        name: { type: string }
+        slug: { type: string }
+        description: { type: string }
+        price: { type: integer, description: Minor units (paise/cents) }
+        currency: { type: string, default: INR }
+        fileUrl: { type: string }
+        coverImage: { type: string }
+        active: { type: boolean }
+        sales: { type: integer }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    Order:
+      type: object
+      properties:
+        _id: { type: string, format: uuid }
+        product: { type: string }
+        productName: { type: string }
+        buyerEmail: { type: string, format: email }
+        amount: { type: integer }
+        currency: { type: string }
+        status: { type: string, enum: [pending, paid, failed, refunded] }
+        provider:
+          {
+            type: string,
+            example: manual,
+            description: Payment provider stub — "manual" until a gateway is configured,
+          }
+        providerRef: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    NewsletterSubscriber:
+      type: object
+      properties:
+        _id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        status: { type: string, enum: [subscribed, unsubscribed] }
+        source: { type: string }
+        createdAt: { type: string, format: date-time }
+    Comment:
+      type: object
+      properties:
+        _id: { type: string, format: uuid }
+        post: { type: string, description: Post _id }
+        authorName: { type: string }
+        authorEmail: { type: string, format: email }
+        body: { type: string }
+        status: { type: string, enum: [pending, approved, spam, rejected] }
+        createdAt: { type: string, format: date-time }
+    MediaItem:
+      type: object
+      properties:
+        _id: { type: string, format: uuid }
+        filename: { type: string }
+        url: { type: string }
+        mimeType: { type: string }
+        size: { type: integer }
+        width: { type: integer }
+        height: { type: integer }
+        alt: { type: string }
+        uploadedBy: { type: string }
+        createdAt: { type: string, format: date-time }
+    Redirect:
+      type: object
+      properties:
+        _id: { type: string, format: uuid }
+        from: { type: string }
+        to: { type: string }
+        statusCode: { type: integer, enum: [301, 302] }
+        active: { type: boolean }
+        hits: { type: integer }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    PaginatedPosts:
+      type: object
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/Post" } }
+        total: { type: integer }
+        page: { type: integer }
+        pageSize: { type: integer }
+        totalPages: { type: integer }
+    OverviewStats:
+      type: object
+      properties:
+        totalPosts: { type: integer }
+        publishedPosts: { type: integer }
+        draftPosts: { type: integer }
+        scheduledPosts: { type: integer }
+        totalNewsItems: { type: integer }
+        rssSourcesActive: { type: integer }
+        rssItemsToday: { type: integer }
+        totalViews: { type: integer }
+        topPosts:
+          type: array
+          items:
+            type: object
+            properties:
+              slug: { type: string }
+              title: { type: string }
+              views: { type: integer }
+        affiliateClicks: { type: integer }
+        newsletterSubscribers: { type: integer }
+        productSales: { type: integer }
+        recentActivity: { type: array, items: { type: object } }
+paths:
+  /api/v1/health:
+    get:
+      tags: [Admin]
+      summary: Health check
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data:
+                    type: object
+                    properties:
+                      status: { type: string, example: ok }
+                      uptimeSeconds: { type: integer }
+  /api/v1/auth/login:
+    post:
+      tags: [Auth]
+      summary: Login — returns an access token and sets the refresh-token cookie
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data:
+                    type: object
+                    properties:
+                      accessToken: { type: string }
+                      user: { $ref: "#/components/schemas/User" }
+        "401":
+          {
+            description: Invalid credentials,
+            content:
+              { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } },
+          }
+  /api/v1/auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Rotate the refresh token (httpOnly cookie or JSON body)
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refreshToken:
+                  {
+                    type: string,
+                    description: Only needed when the cookie is absent (non-browser clients),
+                  }
+      responses:
+        "200": { description: Fresh token pair }
+        "401":
+          {
+            description: Invalid/expired refresh token,
+            content:
+              { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } },
+          }
+  /api/v1/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Clear the refresh-token cookie
+      responses:
+        "200": { description: Logged out }
+  /api/v1/auth/register:
+    post:
+      tags: [Auth]
+      summary: Disabled — always 403
+      responses:
+        "403":
+          {
+            description: REGISTRATION_DISABLED,
+            content:
+              { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } },
+          }
+  /api/v1/auth/me:
+    get:
+      tags: [Auth]
+      summary: Current user
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          {
+            description: Current user,
+            content:
+              {
+                application/json:
+                  {
+                    schema:
+                      {
+                        type: object,
+                        properties:
+                          {
+                            success: { type: boolean },
+                            data: { $ref: "#/components/schemas/User" },
+                          },
+                      },
+                  },
+              },
+          }
+        "401": { description: Unauthorized }
+  /api/v1/posts:
+    get:
+      tags: [Posts]
+      summary: List posts (public sees published only)
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+        - { name: category, in: query, schema: { type: string }, description: Category slug }
+        - { name: tag, in: query, schema: { type: string }, description: Tag slug }
+        - {
+            name: status,
+            in: query,
+            schema: { type: string },
+            description: Staff with posts.view only,
+          }
+        - { name: postType, in: query, schema: { type: string } }
+        - { name: search, in: query, schema: { type: string }, description: Title/summary search }
+      responses:
+        "200":
+          description: Paginated posts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data: { $ref: "#/components/schemas/PaginatedPosts" }
+    post:
+      tags: [Posts]
+      summary: Create a post
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `posts.create`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PostCreate" }
+      responses:
+        "201":
+          {
+            description: Created,
+            content:
+              {
+                application/json:
+                  {
+                    schema:
+                      {
+                        type: object,
+                        properties:
+                          {
+                            success: { type: boolean },
+                            data: { $ref: "#/components/schemas/Post" },
+                          },
+                      },
+                  },
+              },
+          }
+        "400": { description: Invalid category/author }
+        "401": { description: Unauthorized }
+        "403": { description: Forbidden }
+        "422": { description: Validation failed }
+  /api/v1/posts/search:
+    get:
+      tags: [Posts]
+      summary: Search published posts (q is an alias for search)
+      parameters:
+        - { name: q, in: query, schema: { type: string } }
+        - { name: search, in: query, schema: { type: string } }
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+      responses:
+        "200": { description: Paginated posts }
+  /api/v1/posts/{slug}:
+    get:
+      tags: [Posts]
+      summary: Get a post by slug (increments views)
+      parameters:
+        - { name: slug, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          {
+            description: Post,
+            content:
+              {
+                application/json:
+                  {
+                    schema:
+                      {
+                        type: object,
+                        properties:
+                          {
+                            success: { type: boolean },
+                            data: { $ref: "#/components/schemas/Post" },
+                          },
+                      },
+                  },
+              },
+          }
+        "404": { description: Post not found }
+  /api/v1/posts/id/{id}:
+    get:
+      tags: [Posts]
+      summary: Get a post by UUID (staff)
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `posts.view`.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: Post }
+        "404": { description: Post not found }
+  /api/v1/posts/{id}:
+    patch:
+      tags: [Posts]
+      summary: Update a post
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `posts.edit`. Partial `PostCreate` body.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: Updated post }
+        "404": { description: Post not found }
+    delete:
+      tags: [Posts]
+      summary: Delete a post
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `posts.delete`.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: "{ deleted: true }" }
+        "404": { description: Post not found }
+  /api/v1/posts/{id}/publish:
+    post:
+      tags: [Posts]
+      summary: Publish now
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `posts.publish`. Optional body `{ publishedAt }`.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: Published post }
+  /api/v1/posts/{id}/schedule:
+    post:
+      tags: [Posts]
+      summary: Schedule for a future date
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `posts.publish`. Body `{ publishedAt }` must be in the future.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [publishedAt]
+              properties:
+                publishedAt: { type: string, format: date-time }
+      responses:
+        "200": { description: Scheduled post }
+        "400": { description: Invalid/past date }
+  /api/v1/categories:
+    get:
+      tags: [Categories]
+      summary: List categories
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+      responses:
+        "200": { description: Paginated categories }
+    post:
+      tags: [Categories]
+      summary: Create a category
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `categories.manage`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, slug]
+              properties:
+                name: { type: string }
+                slug: { type: string }
+                description: { type: string }
+                parent: { type: string, nullable: true }
+                order: { type: integer, default: 0 }
+                isVertical: { type: boolean, default: false }
+                seo: { $ref: "#/components/schemas/SeoMeta" }
+      responses:
+        "201": { description: Created }
+  /api/v1/categories/{slug}:
+    get:
+      tags: [Categories]
+      summary: Get a category by slug
+      parameters:
+        - { name: slug, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: Category }
+        "404": { description: Category not found }
+  /api/v1/categories/{id}:
+    patch:
+      tags: [Categories]
+      summary: Update a category
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `categories.manage`.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: Updated category }
+    delete:
+      tags: [Categories]
+      summary: Delete a category
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `categories.manage`.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: "{ deleted: true }" }
+  /api/v1/tags:
+    get:
+      tags: [Tags]
+      summary: List tags
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+      responses:
+        "200": { description: Paginated tags }
+    post:
+      tags: [Tags]
+      summary: Create a tag
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `categories.manage`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, slug]
+              properties:
+                name: { type: string }
+                slug: { type: string }
+      responses:
+        "201": { description: Created }
+        "409": { description: Tag slug already exists }
+  /api/v1/tags/{id}:
+    delete:
+      tags: [Tags]
+      summary: Delete a tag
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `categories.manage`.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: "{ deleted: true }" }
+  /api/v1/rss/sources:
+    get:
+      tags: [RSS]
+      summary: List RSS sources
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `rss.manage`.
+      responses:
+        "200": { description: Paginated sources }
+    post:
+      tags: [RSS]
+      summary: Create an RSS source
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `rss.manage`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, url, category]
+              properties:
+                name: { type: string }
+                url: { type: string, format: uri }
+                category: { type: string, description: Category slug }
+                active: { type: boolean, default: true }
+                fetchIntervalMinutes: { type: integer, minimum: 5, maximum: 1440, default: 15 }
+      responses:
+        "201": { description: Created }
+  /api/v1/rss/sources/{id}:
+    get:
+      tags: [RSS]
+      summary: Get an RSS source
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `rss.manage`.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: Source }
+    patch:
+      tags: [RSS]
+      summary: Update an RSS source
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `rss.manage`.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: Updated source }
+    delete:
+      tags: [RSS]
+      summary: Delete an RSS source
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `rss.manage`.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: "{ deleted: true }" }
+  /api/v1/rss/sources/{id}/fetch:
+    post:
+      tags: [RSS]
+      summary: Manual fetch trigger — ingest now, synchronously
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `rss.manage`. Returns `{ created, skipped, postsCreated, sourceId }`.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: Fetch summary }
+        "502": { description: RSS_FETCH_FAILED }
+  /api/v1/rss/sources/{id}/enqueue:
+    post:
+      tags: [RSS]
+      summary: Enqueue a background fetch job
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `rss.manage`.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: "{ jobId, queued: true }" }
+  /api/v1/rss/items:
+    get:
+      tags: [RSS]
+      summary: List ingested RSS items
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `rss.manage`. Filters `source`, `category`, `imported`.
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+      responses:
+        "200": { description: Paginated items }
+  /api/v1/rss/items/{id}/import:
+    post:
+      tags: [RSS]
+      summary: Manually import an RSS item as a draft news post
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `rss.manage`. Idempotent — returns the existing post when already imported.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: "{ imported: true, postId }" }
+        "404": { description: Item or source not found }
+  /api/v1/banners:
+    get:
+      tags: [Banners]
+      summary: List banners
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+        - { name: placement, in: query, schema: { type: string } }
+        - { name: active, in: query, schema: { type: boolean } }
+      responses:
+        "200": { description: Paginated banners }
+    post:
+      tags: [Banners]
+      summary: Create a banner
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `banners.manage`.
+      responses:
+        "201": { description: Created }
+  /api/v1/banners/active/{placement}:
+    get:
+      tags: [Banners]
+      summary: Active banners for a placement (window-checked)
+      parameters:
+        - { name: placement, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: Active banners }
+  /api/v1/banners/{id}:
+    patch:
+      tags: [Banners]
+      summary: Update a banner
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `banners.manage`.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: Updated banner }
+    delete:
+      tags: [Banners]
+      summary: Delete a banner
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `banners.manage`.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: "{ deleted: true }" }
+  /api/v1/banners/{id}/click:
+    post:
+      tags: [Banners]
+      summary: Record a banner click
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: "{ recorded: true }" }
+  /api/v1/affiliates:
+    get:
+      tags: [Affiliates]
+      summary: List affiliate links
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `affiliates.manage`.
+      responses:
+        "200": { description: Paginated affiliate links }
+    post:
+      tags: [Affiliates]
+      summary: Create an affiliate link
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `affiliates.manage`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, targetUrl, slug]
+              properties:
+                title: { type: string }
+                targetUrl: { type: string, format: uri }
+                slug: { type: string }
+                category: { type: string }
+                active: { type: boolean, default: true }
+      responses:
+        "201": { description: Created }
+  /api/v1/affiliates/{id}:
+    patch:
+      tags: [Affiliates]
+      summary: Update an affiliate link
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `affiliates.manage`.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: Updated link }
+    delete:
+      tags: [Affiliates]
+      summary: Delete an affiliate link
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `affiliates.manage`.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: "{ deleted: true }" }
+  /go/{slug}:
+    get:
+      tags: [Affiliates]
+      summary: Affiliate redirect (302, counts a click)
+      parameters:
+        - { name: slug, in: path, required: true, schema: { type: string } }
+      responses:
+        "302": { description: Redirect to targetUrl }
+        "404": { description: Link not found or inactive }
+  /api/v1/affiliates/go/{slug}:
+    get:
+      tags: [Affiliates]
+      summary: Resolve an affiliate link as JSON (for the Next.js /go page)
+      parameters:
+        - { name: slug, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: "{ targetUrl }" }
+        "404": { description: Link not found or inactive }
+  /api/v1/authors:
+    get:
+      tags: [Authors]
+      summary: List authors
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+      responses:
+        "200": { description: Paginated authors }
+    post:
+      tags: [Authors]
+      summary: Create an author
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `authors.manage`.
+      responses:
+        "201": { description: Created }
+  /api/v1/authors/{slug}:
+    get:
+      tags: [Authors]
+      summary: Get an author by slug
+      parameters:
+        - { name: slug, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: Author }
+        "404": { description: Author not found }
+  /api/v1/authors/{id}:
+    patch:
+      tags: [Authors]
+      summary: Update an author
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `authors.manage`.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: Updated author }
+    delete:
+      tags: [Authors]
+      summary: Delete an author
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `authors.manage`.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: "{ deleted: true }" }
+  /api/v1/redirects:
+    get:
+      tags: [Redirects]
+      summary: List redirects
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `redirects.manage`.
+      responses:
+        "200": { description: Paginated redirects }
+    post:
+      tags: [Redirects]
+      summary: Create a redirect
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `redirects.manage`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [from, to]
+              properties:
+                from: { type: string }
+                to: { type: string }
+                statusCode: { type: integer, enum: [301, 302], default: 301 }
+                active: { type: boolean, default: true }
+      responses:
+        "201": { description: Created }
+  /api/v1/redirects/resolve:
+    get:
+      tags: [Redirects]
+      summary: Resolve a path to its redirect (counts a hit)
+      parameters:
+        - { name: from, in: query, required: true, schema: { type: string } }
+      responses:
+        "200": { description: Redirect }
+        "404": { description: No redirect for this path }
+  /api/v1/redirects/{id}:
+    patch:
+      tags: [Redirects]
+      summary: Update a redirect
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `redirects.manage`.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: Updated redirect }
+    delete:
+      tags: [Redirects]
+      summary: Delete a redirect
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `redirects.manage`.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: "{ deleted: true }" }
+  /api/v1/products:
+    get:
+      tags: [Products]
+      summary: List products (active only by default)
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+      responses:
+        "200": { description: Paginated products }
+    post:
+      tags: [Products]
+      summary: Create a product
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `products.manage`. Price in minor units.
+      responses:
+        "201": { description: Created }
+  /api/v1/products/{slug}:
+    get:
+      tags: [Products]
+      summary: Get a product by slug
+      parameters:
+        - { name: slug, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: Product }
+        "404": { description: Product not found }
+  /api/v1/products/{id}:
+    patch:
+      tags: [Products]
+      summary: Update a product
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `products.manage`.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: Updated product }
+    delete:
+      tags: [Products]
+      summary: Delete a product
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `products.manage`.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: "{ deleted: true }" }
+  /api/v1/orders:
+    get:
+      tags: [Orders]
+      summary: List orders
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `orders.view`.
+      responses:
+        "200": { description: Paginated orders }
+    post:
+      tags: [Orders]
+      summary: Public checkout — creates a pending order (provider "manual")
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [product, buyerEmail]
+              properties:
+                product: { type: string, description: Product _id }
+                buyerEmail: { type: string, format: email }
+      responses:
+        "201": { description: Created order }
+        "400": { description: Product inactive }
+        "404": { description: Product not found }
+  /api/v1/orders/{id}:
+    get:
+      tags: [Orders]
+      summary: Get an order
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `orders.view`.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: Order }
+  /api/v1/orders/{id}/status:
+    patch:
+      tags: [Orders]
+      summary: Set order status (manual payment confirmation)
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `products.manage`. `paid` increments product sales.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [pending, paid, failed, refunded] }
+      responses:
+        "200": { description: Updated order }
+  /api/v1/newsletter:
+    get:
+      tags: [Newsletter]
+      summary: List subscribers
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `newsletter.view`.
+      responses:
+        "200": { description: Paginated subscribers }
+    post:
+      tags: [Newsletter]
+      summary: Subscribe (alias of /newsletter/subscribe, used by the public site)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+                source: { type: string }
+      responses:
+        "201": { description: Subscribed }
+  /api/v1/newsletter/subscribe:
+    post:
+      tags: [Newsletter]
+      summary: Subscribe (idempotent)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+                source: { type: string }
+      responses:
+        "201": { description: Subscribed }
+  /api/v1/newsletter/unsubscribe:
+    post:
+      tags: [Newsletter]
+      summary: Unsubscribe by email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        "200": { description: Unsubscribed }
+  /api/v1/newsletter/{id}:
+    delete:
+      tags: [Newsletter]
+      summary: Delete a subscriber
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `newsletter.view`.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: "{ deleted: true }" }
+  /api/v1/comments/post/{postId}:
+    get:
+      tags: [Comments]
+      summary: Approved comments for a post
+      parameters:
+        - { name: postId, in: path, required: true, schema: { type: string, format: uuid } }
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+      responses:
+        "200": { description: Paginated comments }
+  /api/v1/comments:
+    get:
+      tags: [Comments]
+      summary: Moderation queue
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `comments.moderate`. Filters `status`, `post`.
+      responses:
+        "200": { description: Paginated comments }
+    post:
+      tags: [Comments]
+      summary: Create a comment (starts pending)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [post, authorName, body]
+              properties:
+                post: { type: string, description: Post _id }
+                authorName: { type: string }
+                authorEmail: { type: string, format: email }
+                body: { type: string, maxLength: 2000 }
+      responses:
+        "201": { description: Created (pending moderation) }
+  /api/v1/comments/{id}/status:
+    patch:
+      tags: [Comments]
+      summary: Moderate a comment
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `comments.moderate`.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [pending, approved, spam, rejected] }
+      responses:
+        "200": { description: Updated comment }
+  /api/v1/comments/{id}:
+    delete:
+      tags: [Comments]
+      summary: Delete a comment
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `comments.moderate`.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: "{ deleted: true }" }
+  /api/v1/media:
+    get:
+      tags: [Media]
+      summary: List media
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `media.manage`.
+      responses:
+        "200": { description: Paginated media }
+  /api/v1/media/upload:
+    post:
+      tags: [Media]
+      summary: Upload a file (multipart, field `file`; images + PDF, max 10 MB)
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `media.manage`. Files are served at `/uploads/<filename>`.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: { type: string, format: binary }
+                alt: { type: string }
+      responses:
+        "201": { description: Created media item }
+        "400": { description: No file / unsupported type }
+  /api/v1/media/{id}:
+    delete:
+      tags: [Media]
+      summary: Delete a media item (also removes the file)
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `media.manage`.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: "{ deleted: true }" }
+  /api/v1/users:
+    get:
+      tags: [Users]
+      summary: List users
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `users.manage` (super_admin only).
+      responses:
+        "200": { description: Paginated users }
+    post:
+      tags: [Users]
+      summary: Create a user
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `users.manage` (super_admin only).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, password, role]
+              properties:
+                name: { type: string }
+                email: { type: string, format: email }
+                password: { type: string, minLength: 8 }
+                role:
+                  type: string
+                  enum:
+                    [
+                      super_admin,
+                      admin,
+                      editor,
+                      author,
+                      news_editor,
+                      seo_manager,
+                      marketing_manager,
+                      analyst,
+                    ]
+      responses:
+        "201": { description: Created user }
+        "409": { description: Email already exists }
+  /api/v1/users/{id}:
+    get:
+      tags: [Users]
+      summary: Get a user
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `users.manage`.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: User }
+    patch:
+      tags: [Users]
+      summary: Update a user
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `users.manage`.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: Updated user }
+    delete:
+      tags: [Users]
+      summary: Delete a user
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `users.manage`.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: "{ deleted: true }" }
+  /api/v1/seo-settings:
+    get:
+      tags: [Settings]
+      summary: Get SEO settings
+      responses:
+        "200": { description: SEO settings }
+    put:
+      tags: [Settings]
+      summary: Upsert SEO settings
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `seo.manage`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [defaultTitle, defaultDescription]
+              properties:
+                defaultTitle: { type: string, maxLength: 160 }
+                defaultDescription: { type: string }
+                defaultOgImage: { type: string }
+                twitterHandle: { type: string }
+                googleNewsEnabled: { type: boolean, default: true }
+                robotsTxt: { type: string }
+      responses:
+        "200": { description: Updated SEO settings }
+    patch:
+      tags: [Settings]
+      summary: Partially update SEO settings (merge semantics)
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `seo.manage`. Only fields present in the body are changed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                defaultTitle: { type: string, maxLength: 160 }
+                defaultDescription: { type: string }
+                defaultOgImage: { type: string }
+                twitterHandle: { type: string }
+                googleNewsEnabled: { type: boolean, default: true }
+                robotsTxt: { type: string }
+      responses:
+        "200": { description: Updated SEO settings }
+  /api/v1/site-settings:
+    get:
+      tags: [Settings]
+      summary: Get site settings
+      responses:
+        "200": { description: Site settings }
+    put:
+      tags: [Settings]
+      summary: Upsert site settings
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `settings.manage`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [siteName]
+              properties:
+                siteName: { type: string }
+                tagline: { type: string }
+                logoUrl: { type: string }
+                faviconUrl: { type: string }
+                primaryColor: { type: string, default: "#1d4ed8" }
+                adsenseClientId: { type: string }
+                gaMeasurementId: { type: string }
+                socialLinks: { type: object, additionalProperties: { type: string } }
+      responses:
+        "200": { description: Updated site settings }
+    patch:
+      tags: [Settings]
+      summary: Partially update site settings (merge semantics)
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `settings.manage`. Only fields present in the body are changed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                siteName: { type: string }
+                tagline: { type: string }
+                logoUrl: { type: string }
+                faviconUrl: { type: string }
+                primaryColor: { type: string, default: "#1d4ed8" }
+                adsenseClientId: { type: string }
+                gaMeasurementId: { type: string }
+                socialLinks: { type: object, additionalProperties: { type: string } }
+      responses:
+        "200": { description: Updated site settings }
+  /api/v1/analytics/events:
+    post:
+      tags: [Analytics]
+      summary: Record an analytics event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type]
+              properties:
+                type: { type: string, example: page_view }
+                post: { type: string, description: Post _id or slug }
+                path: { type: string }
+                referrer: { type: string }
+      responses:
+        "201": { description: Recorded event }
+    get:
+      tags: [Analytics]
+      summary: List analytics events
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `analytics.view`. Filters `type`, `post`.
+      responses:
+        "200": { description: Paginated events }
+  /api/v1/analytics/overview:
+    get:
+      tags: [Analytics]
+      summary: Analytics overview aggregates
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `analytics.view`.
+      responses:
+        "200": { description: Overview aggregates }
+  /api/v1/admin/overview:
+    get:
+      tags: [Admin]
+      summary: Dashboard overview stats
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `analytics.view`. Returns the shared `OverviewStats` shape.
+      responses:
+        "200":
+          description: Overview stats
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data: { $ref: "#/components/schemas/OverviewStats" }
+  /api/v1/admin/audit-logs:
+    get:
+      tags: [Admin]
+      summary: Admin activity log
+      security: [{ bearerAuth: [] }]
+      description: Requires permission `analytics.view`. Filters `entity`, `user`.
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+      responses:
+        "200": { description: Paginated audit logs }
